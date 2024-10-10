@@ -1,4 +1,4 @@
-use crate::ast::{ASTNode, ConfigAST};
+use crate::ast::{ConfigAST, Node};
 use std::fs;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -8,14 +8,14 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
     let reader = BufReader::new(file);
     let mut ast = ConfigAST { nodes: Vec::new() };
 
-    let mut current_section: Option<(String, Vec<ASTNode>)> = None;
+    let mut current_section: Option<(String, Vec<Node>)> = None;
 
     for line in reader.lines() {
         let line = line.expect("Unable to read line").trim().to_string();
 
         // Handling comments
         if line.starts_with('#') {
-            ast.nodes.push(ASTNode::Comment(line));
+            ast.nodes.push(Node::Comment(line));
         } else if line.ends_with('{') {
             // Start a new section
             let section_name = line[..line.len() - 1].trim().to_string();
@@ -23,8 +23,7 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
         } else if line.ends_with('}') {
             // End the current section
             if let Some((section_name, section_nodes)) = current_section.take() {
-                ast.nodes
-                    .push(ASTNode::Section(section_name, section_nodes));
+                ast.nodes.push(Node::Section(section_name, section_nodes));
             }
         } else if line.contains('=') {
             // Handle key-value pairs, with multiple values separated by commas
@@ -36,9 +35,9 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
                 .collect();
 
             if let Some((_, section_nodes)) = current_section.as_mut() {
-                section_nodes.push(ASTNode::KeyValues(key, values));
+                section_nodes.push(Node::KeyValues(key, values));
             } else {
-                ast.nodes.push(ASTNode::KeyValues(key, values));
+                ast.nodes.push(Node::KeyValues(key, values));
             }
         }
     }
