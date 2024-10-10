@@ -11,7 +11,7 @@ struct Cli {
     input: String,
 
     #[arg(short, long)]
-    output: String,
+    output: Option<String>,
 }
 
 fn main() {
@@ -20,6 +20,11 @@ fn main() {
     let ast = parser::parse_config_to_ast(&cli.input);
     let formatted_output = formatter::format_ast(&ast);
 
-    fs::write(&cli.output, formatted_output).expect("Unable to write formatted config");
+    let out = match cli.output {
+        Some(var) => var,
+        None => cli.input,
+    };
+
+    fs::write(out, formatted_output).expect("Unable to write formatted config");
     let _ = fs::write("log.rs", format!("{:?}", &ast));
 }
