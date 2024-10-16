@@ -26,11 +26,11 @@ fn main() {
     let ast = parser::parse_config_to_ast(&cli.input);
 
     let config = Config {
-        indentation: 10,
+        indentation: 2,
         align_comments: true,
     };
 
-    let formatted_output = formatter::format_ast(&ast, config);
+    let formatted_output = formatter::format_ast(&ast, config, 0);
 
     let out = match cli.output {
         Some(var) => var,

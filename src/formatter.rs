@@ -1,37 +1,41 @@
 use crate::ast::{ASTNode, ConfigAST};
 use crate::Config;
 
-pub fn format_ast(ast: &ConfigAST, config: Config) -> String {
+pub fn format_ast(ast: &ConfigAST, config: Config, current_indent: usize) -> String {
     let mut output = String::new();
+
+    // Create the current indentation string
+    let indent_str = (0..current_indent).map(|_| " ").collect::<String>();
 
     for node in &ast.nodes {
         match node {
             ASTNode::Comment(comment) => {
-                output.push_str(&format!("{}\n", comment));
+                // Trim any leading spaces and ensure only one # is present
+                let trimmed_comment = comment.trim_start_matches('#').trim_start();
+                output.push_str(&format!("{}# {}\n", indent_str, trimmed_comment));
             }
             ASTNode::KeyValues(key, values) => {
                 let values_str = values.join(", ");
-                output.push_str(&format!("{} = {}\n", key, values_str));
+                // Add current indentation for key-value pairs
+                output.push_str(&format!("{}{} = {}\n", indent_str, key, values_str));
             }
             ASTNode::Section(name, nodes) => {
-                output.push_str(&format!("{} {{\n", name));
-                for child in nodes {
-                    let indent = (0..config.indentation).map(|_| " ").collect::<String>();
-                    output.push_str(&format!(
-                        "{}{}",
-                        indent,
-                        &format_ast(
-                            &ConfigAST {
-                                nodes: vec![child.clone()],
-                            },
-                            config.clone(),
-                        )
-                    ))
-                }
-                output.push_str("}\n");
+                // Add current indentation for section start
+                output.push_str(&format!("{}{} {{\n", indent_str, name));
+                // Recursively format the section's child nodes with increased indentation
+                output.push_str(&format_ast(
+                    &ConfigAST {
+                        nodes: nodes.clone(),
+                    },
+                    config.clone(),
+                    current_indent + config.indentation as usize, // Increase the indentation
+                ));
+                // Add current indentation for section end
+                output.push_str(&format!("{}}}\n", indent_str));
             }
             ASTNode::SpaceOrLine(_) => {
-                output.push_str("\n"); // Always add a newline for space or line nodes
+                // Preserve the line as it is with the current indentation
+                output.push_str(&format!("{}\n", indent_str));
             }
         }
     }

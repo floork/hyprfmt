@@ -8,58 +8,75 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
     let reader = BufReader::new(file);
     let mut ast = ConfigAST { nodes: Vec::new() };
 
-    let mut current_section: Option<(String, Vec<ASTNode>)> = None;
+    // Stack to handle nested sections
+    let mut section_stack: Vec<(String, Vec<ASTNode>)> = Vec::new();
 
     for line in reader.lines() {
-        let line = line.expect("Unable to read line").trim().to_string();
+        let line = line.expect("Unable to read line");
+        let trimmed_line = line.trim();
 
         // Handle comments
-        if line.starts_with('#') {
-            // Push comments only if there's an active section
-            if let Some((_, section_nodes)) = current_section.as_mut() {
-                section_nodes.push(ASTNode::Comment(line));
+        if trimmed_line.starts_with('#') {
+            if let Some((_, section_nodes)) = section_stack.last_mut() {
+                section_nodes.push(ASTNode::Comment(line.clone()));
             } else {
-                ast.nodes.push(ASTNode::Comment(line));
+                ast.nodes.push(ASTNode::Comment(line.clone()));
             }
-        } else if line.contains('{') {
+        } else if trimmed_line.contains('{') {
             // Start a new section
-            let section_name = line.split('{').next().unwrap().trim().to_string();
-            current_section = Some((section_name, Vec::new()));
-        } else if line.ends_with('}') {
+            let section_name = trimmed_line.split('{').next().unwrap().trim().to_string();
+            section_stack.push((section_name, Vec::new()));
+        } else if trimmed_line.ends_with('}') {
             // End the current section
-            if let Some((section_name, section_nodes)) = current_section.take() {
-                ast.nodes
-                    .push(ASTNode::Section(section_name, section_nodes));
+            if let Some((section_name, section_nodes)) = section_stack.pop() {
+                let section_node = ASTNode::Section(section_name, section_nodes);
+                if let Some((_, parent_nodes)) = section_stack.last_mut() {
+                    parent_nodes.push(section_node);
+                } else {
+                    ast.nodes.push(section_node);
+                }
             }
-        } else if line.contains('=') {
+        } else if trimmed_line.contains('=') {
             // Handle key-value pairs
-            let parts: Vec<&str> = line.splitn(2, '=').collect();
+            let parts: Vec<&str> = trimmed_line.splitn(2, '=').collect();
             let key = parts[0].trim().to_string();
             let mut values: Vec<String> = parts[1]
                 .split(',')
                 .map(|value| value.trim().to_string())
                 .collect();
 
-            // Check for inline comments
+            // Handle inline comments
             if let Some(comment_index) = line.find('#') {
                 let inline_comment = line[comment_index..].trim().to_string();
-                values.push(inline_comment); // Treat inline comments as values for key-value pairs
+                values.push(inline_comment);
             }
 
-            if let Some((_, section_nodes)) = current_section.as_mut() {
+            if let Some((_, section_nodes)) = section_stack.last_mut() {
                 section_nodes.push(ASTNode::KeyValues(key, values));
             } else {
                 ast.nodes.push(ASTNode::KeyValues(key, values));
             }
-        } else if !line.is_empty() {
-            if let Some((_, section_nodes)) = current_section.as_mut() {
-                section_nodes.push(ASTNode::SpaceOrLine(line));
+        } else if trimmed_line.is_empty() {
+            // Handle blank lines explicitly
+            if let Some((_, section_nodes)) = section_stack.last_mut() {
+                section_nodes.push(ASTNode::SpaceOrLine(line.clone()));
             } else {
-                ast.nodes.push(ASTNode::SpaceOrLine(line));
+                ast.nodes.push(ASTNode::SpaceOrLine(line.clone()));
             }
-        } else if line.is_empty() {
-            ast.nodes.push(ASTNode::SpaceOrLine(line));
+        } else {
+            // Handle other non-empty lines that are not recognized
+            if let Some((_, section_nodes)) = section_stack.last_mut() {
+                section_nodes.push(ASTNode::SpaceOrLine(line.clone()));
+            } else {
+                ast.nodes.push(ASTNode::SpaceOrLine(line.clone()));
+            }
         }
+    }
+
+    // Handle any remaining open sections (in case the file doesn't end cleanly)
+    while let Some((section_name, section_nodes)) = section_stack.pop() {
+        ast.nodes
+            .push(ASTNode::Section(section_name, section_nodes));
     }
 
     ast
