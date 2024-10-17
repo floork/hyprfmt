@@ -15,7 +15,7 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
         let line = line.expect("Unable to read line");
         let trimmed_line = line.trim();
 
-        // Handle comments
+        // Handle standalone comments
         if trimmed_line.starts_with('#') {
             if let Some((_, section_nodes)) = section_stack.last_mut() {
                 section_nodes.push(ASTNode::Comment(line.clone()));
@@ -37,24 +37,27 @@ pub fn parse_config_to_ast(path: &str) -> ConfigAST {
                 }
             }
         } else if trimmed_line.contains('=') {
-            // Handle key-value pairs
+            // Handle key-value pairs with possible inline comment
             let parts: Vec<&str> = trimmed_line.splitn(2, '=').collect();
             let key = parts[0].trim().to_string();
-            let mut values: Vec<String> = parts[1]
+            let value_and_comment = parts[1].splitn(2, '#').collect::<Vec<&str>>();
+            let values: Vec<String> = value_and_comment[0]
                 .split(',')
                 .map(|value| value.trim().to_string())
                 .collect();
 
-            // Handle inline comments
-            if let Some(comment_index) = line.find('#') {
-                let inline_comment = line[comment_index..].trim().to_string();
-                values.push(inline_comment);
-            }
-
-            if let Some((_, section_nodes)) = section_stack.last_mut() {
-                section_nodes.push(ASTNode::KeyValues(key, values));
+            // Extract inline comment if present
+            let inline_comment = if value_and_comment.len() > 1 {
+                Some(value_and_comment[1].trim().to_string())
             } else {
-                ast.nodes.push(ASTNode::KeyValues(key, values));
+                None
+            };
+
+            let key_value_node = ASTNode::KeyValues(key, values, inline_comment);
+            if let Some((_, section_nodes)) = section_stack.last_mut() {
+                section_nodes.push(key_value_node);
+            } else {
+                ast.nodes.push(key_value_node);
             }
         } else if trimmed_line.is_empty() {
             // Handle blank lines explicitly
