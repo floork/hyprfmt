@@ -26,9 +26,8 @@ pub fn format_ast(ast: &ConfigAST, config: Config, current_indent: usize) -> Str
     for node in &ast.nodes {
         match node {
             ASTNode::Comment(comment) => {
-                // For standalone comments, trim the leading # if it exists
-                let trimmed_comment = comment.trim_start_matches('#').trim_start();
-                output.push_str(&format!("{}# {}\n", indent_str, trimmed_comment));
+                let trimmed_comment = comment.trim();
+                output.push_str(&format!("{}{}\n", indent_str, trimmed_comment));
             }
             ASTNode::KeyValues(key, values, inline_comment) => {
                 let values_str = values.join(", ");
@@ -41,7 +40,7 @@ pub fn format_ast(ast: &ConfigAST, config: Config, current_indent: usize) -> Str
                         let padding = max_width
                             .saturating_sub(indent_str.len() + key.len() + 3 + values_str.len());
                         output.push_str(&format!(
-                            "{:padding$}# {}\n",
+                            " {:padding$}# {}\n",
                             "",
                             trimmed_comment,
                             padding = padding
